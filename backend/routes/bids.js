@@ -4,10 +4,10 @@ const db = require('../models/db');
 
 router.post('/', async (req, res) => {
   const { itemId, bidder, amount } = req.body;
-  const io = req.app.get('io');  // get socket.io instance from express app
+  const io = req.app.get('io');  // Get socket.io instance
 
   try {
-    // Step 1: Get item
+    // Fetch item details
     const itemRes = await db.query(
       'SELECT starting_price, reserve_price, ended FROM items WHERE id = $1',
       [itemId]
@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Auction already ended.' });
     }
 
-    // Step 2: Get current highest bid
+    // Get current highest bid or starting price if none
     const bidRes = await db.query(
       'SELECT MAX(amount) AS highest_bid FROM bids WHERE item_id = $1',
       [itemId]
@@ -32,33 +32,30 @@ router.post('/', async (req, res) => {
       ? parseFloat(bidRes.rows[0].highest_bid)
       : parseFloat(item.starting_price);
 
-    // Step 3: Check if bid is valid
     if (parseFloat(amount) <= highestBid) {
       return res.status(400).json({
         error: `Bid must be higher than current highest bid of ₵${highestBid.toFixed(2)}.`,
       });
     }
 
-    // Step 4: Insert bid
+    // Insert new bid
     await db.query(
       'INSERT INTO bids (item_id, bidder, amount) VALUES ($1, $2, $3)',
       [itemId, bidder, amount]
     );
 
-    // Step 5: If bid meets/exceeds reserve, end auction & emit socket event
+    // If bid meets/exceeds reserve price, end auction and notify clients
     if (parseFloat(amount) >= item.reserve_price) {
-      await db.query(
-        'UPDATE items SET ended = TRUE WHERE id = $1',
-        [itemId]
-      );
-
-      // Emit auctionEnded event to all clients
+      await db.query('UPDATE items SET ended = TRUE WHERE id = $1', [itemId]);
       io.emit('auctionEnded', { itemId });
     }
 
-    res.status(201).json({ message: 'Bid placed' });
+    // Notify clients of the new bid
+    io.emit('newBid', { itemId, bidder, amount: parseFloat(amount) });
+
+    res.status(201).json({ message: 'Bid placed successfully' });
   } catch (err) {
-    console.error(err);
+    console.error('Error placing bid:', err);
     res.status(500).json({ error: 'Server error while placing bid' });
   }
 });

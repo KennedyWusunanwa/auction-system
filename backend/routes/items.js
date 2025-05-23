@@ -1,8 +1,16 @@
 console.log('Items route loaded');
+
 const express = require('express');
 const router = express.Router();
 const db = require('../models/db');
 
+// Log every request hitting this router
+router.use((req, res, next) => {
+  console.log(`Items route called: ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Create a new item
 router.post('/', async (req, res) => {
   const { title, description, startingPrice, endsAt } = req.body;
   try {
@@ -12,16 +20,18 @@ router.post('/', async (req, res) => {
     );
     res.status(201).json({ message: 'Item created' });
   } catch (err) {
+    console.error('Error creating item:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Add this GET / route to get all items
+// Get all items
 router.get('/', async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM items');
     res.json(result.rows);
   } catch (err) {
+    console.error('Error fetching items:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -36,14 +46,9 @@ router.get('/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(`Error fetching item with ID ${id}:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
-
-router.use((req, res, next) => {
-  console.log(`Items route called: ${req.method} ${req.originalUrl}`);
-  next();
-});
-
 
 module.exports = router;

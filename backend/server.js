@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -17,11 +16,12 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// Make io accessible in routes (optional helper)
-app.set('io', io);
-
+// Import routes
 app.use('/api/items', require('./routes/items'));
 app.use('/api/bids', require('./routes/bids'));
+
+// Make io accessible in routes (optional)
+app.set('io', io);
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
