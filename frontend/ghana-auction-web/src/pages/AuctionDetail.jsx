@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:5001');
+import { supabase } from './supabaseClient';
 
 export default function AuctionDetail() {
   const { id } = useParams();
@@ -16,38 +13,36 @@ export default function AuctionDetail() {
   // Fetch item by ID
   useEffect(() => {
     const fetchItem = async () => {
-      try {
-        const res = await axios.get(`http://localhost:5001/api/items/${id}`);
-        setItem(res.data);
-      } catch (err) {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) {
         setError('Failed to load auction item.');
-        console.error(err);
+        console.error(error);
+      } else {
+        setItem(data);
       }
     };
     fetchItem();
   }, [id]);
 
-  // Fetch existing bids
+  // Fetch bids for this item
   useEffect(() => {
     const fetchBids = async () => {
-      try {
-        const res = await axios.get(`http://localhost:5001/api/bids/${id}`);
-        setBids(res.data);
-      } catch (err) {
-        console.error('Failed to load bids:', err);
+      const { data, error } = await supabase
+        .from('bids')
+        .select('*')
+        .eq('item_id', id)
+        .order('amount', { ascending: false });
+      if (error) {
+        console.error('Failed to load bids:', error);
+      } else {
+        setBids(data);
       }
     };
     fetchBids();
-  }, [id]);
-
-  // Realtime updates
-  useEffect(() => {
-    socket.on('newBid', (data) => {
-      if (data.itemId.toString() === id) {
-        setBids(prev => [...prev, data]);
-      }
-    });
-    return () => socket.off('newBid');
   }, [id]);
 
   // Countdown timer
@@ -66,24 +61,37 @@ export default function AuctionDetail() {
 
   const placeBid = async () => {
     const bidAmount = parseFloat(amount);
-    if (!bidAmount || isNaN(bidAmount)) return alert("Enter a valid amount");
+    if (!bidAmount || isNaN(bidAmount)) {
+      alert("Enter a valid amount");
+      return;
+    }
 
     if (bidAmount <= currentHighestBid) {
-      return alert(`Your bid must be higher than the current highest bid (₵${currentHighestBid})`);
+      alert(`Your bid must be higher than the current highest bid (₵${currentHighestBid})`);
+      return;
     }
 
     try {
-      const bid = {
-        itemId: id,
-        bidder: 'You', // replace with actual user info if needed
-        amount: bidAmount,
-      };
-      await axios.post('http://localhost:5001/api/bids', bid);
-      socket.emit('placeBid', bid);
-      setAmount('');
+      const { error } = await supabase
+        .from('bids')
+        .insert([
+          { item_id: id, bidder: 'You', amount: bidAmount }
+        ]);
+      if (error) {
+        alert('Failed to place bid: ' + error.message);
+      } else {
+        setAmount('');
+        // Refresh bids after successful bid
+        const { data: updatedBids, error: bidsError } = await supabase
+          .from('bids')
+          .select('*')
+          .eq('item_id', id)
+          .order('amount', { ascending: false });
+        if (!bidsError) setBids(updatedBids);
+      }
     } catch (err) {
-      console.error('Error placing bid:', err);
-      alert('Failed to place bid. The auction may be closed or your bid was invalid.');
+      alert('Failed to place bid: ' + err.message);
+      console.error(err);
     }
   };
 
