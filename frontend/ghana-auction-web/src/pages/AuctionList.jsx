@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase } from '../supabaseClient';
 import { Link } from 'react-router-dom';
 
 export default function AuctionList() {
@@ -7,7 +7,7 @@ export default function AuctionList() {
 
   useEffect(() => {
     const fetchItems = async () => {
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('items')
         .select('*')
         .order('ends_at', { ascending: true });
@@ -18,10 +18,10 @@ export default function AuctionList() {
         setItems(data);
       }
     };
+
     fetchItems();
   }, []);
 
-  // Currency formatter
   const formatter = new Intl.NumberFormat('en-GH', {
     style: 'currency',
     currency: 'GHS',
@@ -35,7 +35,7 @@ export default function AuctionList() {
         {items.map(item => (
           <li key={item.id}>
             <Link to={`/auction/${item.id}`}>
-              {item.title} - {formatter.format(item.starting_price)}
+              {item.title} - {formatter.format(item.starting_price || 0)}
             </Link>
           </li>
         ))}

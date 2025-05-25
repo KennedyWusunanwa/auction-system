@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from './supabaseClient';
+import { supabase } from '../supabaseClient';
 
 export default function AuctionDetail() {
   const { id } = useParams();
@@ -10,7 +10,6 @@ export default function AuctionDetail() {
   const [remainingTime, setRemainingTime] = useState(0);
   const [error, setError] = useState('');
 
-  // Fetch item by ID
   useEffect(() => {
     const fetchItem = async () => {
       const { data, error } = await supabase
@@ -28,7 +27,6 @@ export default function AuctionDetail() {
     fetchItem();
   }, [id]);
 
-  // Fetch bids for this item
   useEffect(() => {
     const fetchBids = async () => {
       const { data, error } = await supabase
@@ -45,7 +43,6 @@ export default function AuctionDetail() {
     fetchBids();
   }, [id]);
 
-  // Countdown timer
   useEffect(() => {
     if (!item) return;
     const interval = setInterval(() => {
@@ -57,7 +54,7 @@ export default function AuctionDetail() {
 
   const currentHighestBid = bids.length > 0
     ? Math.max(...bids.map(b => b.amount))
-    : 0;
+    : item?.starting_price || 0;
 
   const placeBid = async () => {
     const bidAmount = parseFloat(amount);
@@ -74,14 +71,11 @@ export default function AuctionDetail() {
     try {
       const { error } = await supabase
         .from('bids')
-        .insert([
-          { item_id: id, bidder: 'You', amount: bidAmount }
-        ]);
+        .insert([{ item_id: id, bidder: 'You', amount: bidAmount }]);
       if (error) {
         alert('Failed to place bid: ' + error.message);
       } else {
         setAmount('');
-        // Refresh bids after successful bid
         const { data: updatedBids, error: bidsError } = await supabase
           .from('bids')
           .select('*')
@@ -104,7 +98,6 @@ export default function AuctionDetail() {
     <div>
       <h2>{item.title}</h2>
       <p>{item.description}</p>
-
       <p><strong>Current Highest Bid:</strong> ₵{currentHighestBid.toFixed(2)}</p>
       <p><strong>Status:</strong> {isEnded ? 'Auction Ended' : 'Ongoing'}</p>
       <p><strong>Time Remaining:</strong> {remainingTime}s</p>
