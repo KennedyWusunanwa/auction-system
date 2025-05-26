@@ -1,6 +1,6 @@
 {
   "build": {
-    "builder": "node",
+    "builder": "nodejs",
     "buildCommand": "cd backend && npm install",
     "startCommand": "cd backend && npm start"
   }
