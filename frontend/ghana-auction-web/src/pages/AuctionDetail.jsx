@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient';  // adjust path
 
 export default function AuctionDetail() {
   const { id } = useParams();
@@ -10,8 +10,9 @@ export default function AuctionDetail() {
   const [remainingTime, setRemainingTime] = useState(0);
   const [error, setError] = useState('');
 
+  // Fetch item by ID
   useEffect(() => {
-    const fetchItem = async () => {
+    async function fetchItem() {
       const { data, error } = await supabase
         .from('items')
         .select('*')
@@ -23,12 +24,13 @@ export default function AuctionDetail() {
       } else {
         setItem(data);
       }
-    };
+    }
     fetchItem();
   }, [id]);
 
+  // Fetch bids for the item
   useEffect(() => {
-    const fetchBids = async () => {
+    async function fetchBids() {
       const { data, error } = await supabase
         .from('bids')
         .select('*')
@@ -39,10 +41,11 @@ export default function AuctionDetail() {
       } else {
         setBids(data);
       }
-    };
+    }
     fetchBids();
   }, [id]);
 
+  // Countdown timer
   useEffect(() => {
     if (!item) return;
     const interval = setInterval(() => {
@@ -54,38 +57,46 @@ export default function AuctionDetail() {
 
   const currentHighestBid = bids.length > 0
     ? Math.max(...bids.map(b => b.amount))
-    : item?.starting_price || 0;
+    : 0;
 
+  // Place a bid using Supabase insert
   const placeBid = async () => {
     const bidAmount = parseFloat(amount);
-    if (!bidAmount || isNaN(bidAmount)) {
-      alert("Enter a valid amount");
-      return;
-    }
+    if (!bidAmount || isNaN(bidAmount)) return alert("Enter a valid amount");
 
     if (bidAmount <= currentHighestBid) {
-      alert(`Your bid must be higher than the current highest bid (₵${currentHighestBid})`);
-      return;
+      return alert(`Your bid must be higher than the current highest bid (₵${currentHighestBid})`);
     }
 
     try {
-      const { error } = await supabase
+      // Insert bid into Supabase
+      const { error } = await supabase.from('bids').insert([{
+        item_id: id,
+        bidder: 'You',  // TODO: replace with real user info
+        amount: bidAmount,
+      }]);
+      if (error) throw error;
+
+      setAmount('');
+      // Refresh bids after placing
+      const { data } = await supabase
         .from('bids')
-        .insert([{ item_id: id, bidder: 'You', amount: bidAmount }]);
-      if (error) {
-        alert('Failed to place bid: ' + error.message);
-      } else {
-        setAmount('');
-        const { data: updatedBids, error: bidsError } = await supabase
-          .from('bids')
-          .select('*')
-          .eq('item_id', id)
-          .order('amount', { ascending: false });
-        if (!bidsError) setBids(updatedBids);
-      }
+        .select('*')
+        .eq('item_id', id)
+        .order('amount', { ascending: false });
+      setBids(data);
+
+      // Optionally refresh item in case ended status changed
+      const { data: updatedItem } = await supabase
+        .from('items')
+        .select('*')
+        .eq('id', id)
+        .single();
+      setItem(updatedItem);
+
     } catch (err) {
-      alert('Failed to place bid: ' + err.message);
-      console.error(err);
+      console.error('Error placing bid:', err);
+      alert('Failed to place bid. The auction may be closed or your bid was invalid.');
     }
   };
 
@@ -98,6 +109,7 @@ export default function AuctionDetail() {
     <div>
       <h2>{item.title}</h2>
       <p>{item.description}</p>
+
       <p><strong>Current Highest Bid:</strong> ₵{currentHighestBid.toFixed(2)}</p>
       <p><strong>Status:</strong> {isEnded ? 'Auction Ended' : 'Ongoing'}</p>
       <p><strong>Time Remaining:</strong> {remainingTime}s</p>
